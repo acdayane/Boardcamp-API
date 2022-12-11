@@ -3,9 +3,9 @@ import joi from "joi";
 
 const userSchema = joi.object({
     name: joi.string().required(),
-    phone: joi.string().required().min(10).max(11), //requisito ser número
-    cpf: joi.string().required().min(11).max(11),
-    birthday: joi.string().required()
+    phone: joi.string().min(10).max(11).pattern(/^[0-9]+$/).required(),
+    cpf: joi.string().min(11).max(11).pattern(/^[0-9]+$/).required(),
+    birthday: joi.date().less('now').required(),
 });
 
 export async function registrateCustomer(req, res) {
@@ -17,8 +17,10 @@ export async function registrateCustomer(req, res) {
         return res.status(422).send(err);
     };
 
-    //if cpf já existe return res.sendStatus(409);
-    //if birthday invalido return res.sendStatus(400);
+    const cpfExist = await connectionDB.query('SELECT cpf FROM customers WHERE cpf=$1;', [cpf]);
+    if (cpfExist.rows.length !== 0) {
+        return res.status(409).send('CPF já cadastrado');
+    };
 
     try {
         await connectionDB.query(
