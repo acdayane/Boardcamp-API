@@ -3,7 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import categoriesRoutes from './routes/categoriesRoutes.js';
 import gamesRoutes from './routes/gamesRoutes.js';
-import customerRoutes from './routes/customersRoutes.js'
+import customerRoutes from './routes/customersRoutes.js';
+import rentalsRoutes from './routes/rentalsRoutes.js';
 
 const app = express();
 dotenv.config();
@@ -13,5 +14,6 @@ app.use(express.json());
 app.use(categoriesRoutes);
 app.use(gamesRoutes);
 app.use(customerRoutes);
+app.use(rentalsRoutes);
 
 app.listen(process.env.PORT, () => console.log(`Server running on port ${process.env.PORT}`));
