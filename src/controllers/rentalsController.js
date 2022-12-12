@@ -39,16 +39,16 @@ export async function newRental(req, res) {
     let originalPrice = null;
     const delayFee = null;
 
-    const gameExist = await connectionDB.query('SELECT "pricePerDay" FROM games WHERE id=$1', [gameId]);    
+    const gameExist = await connectionDB.query('SELECT "pricePerDay" FROM games WHERE id=$1', [gameId]);
     if (gameExist.rows.length === 0) {
-        return res.status(400).send('O jogo não existe');
+        return res.status(400).send({ message: 'O jogo não existe' });
     } else {
         originalPrice = gameExist.rows[0].pricePerDay * daysRented;
     };
 
     const customerExist = await connectionDB.query('SELECT "id" FROM customers WHERE id=$1', [customerId]);
     if (customerExist.rows.length === 0) {
-        return res.status(400).send('Cliente não cadastrado');
+        return res.status(400).send({ message: 'Cliente não cadastrado' });
     };
 
     //Game available? se alugueis abertos >= estoque return res.sendStatus(400);
@@ -59,7 +59,7 @@ export async function newRental(req, res) {
         const err = validation.error.details.map((d) => d.message);
         return res.status(422).send(err);
     };
-    
+
     try {
         await connectionDB.query(`
             INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee")
@@ -79,5 +79,23 @@ export async function returnRental(req, res) {
 };
 
 export async function deleteRental(req, res) {
+    const { id } = req.params;
 
+    try {
+        const idExist = await connectionDB.query('SELECT "id" FROM rentals WHERE id=$1;', [id]);
+        if (idExist.rows.length === 0) {
+            return res.status(404).send({ message: 'Id informado não existe' });
+        };
+
+        const returnDateExist = await connectionDB.query('SELECT "returnDate" FROM rentals WHERE id=$1;', [id]);
+        if (returnDateExist.rows[0].returnDate === null) {
+            return res.status(404).send({ message: 'Não é possível excluir registros em aberto' });
+        };
+
+        await connectionDB.query('DELETE FROM rentals WHERE id=$1;', [id]);
+        res.sendStatus(200);
+
+    } catch (err) {
+        res.status(500).send(err);
+    };
 };
