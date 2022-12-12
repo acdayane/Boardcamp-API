@@ -21,9 +21,9 @@ export async function listRentals(req, res) {
         // `);
 
         const rentals = await connectionDB.query(
-            'SELECT * FROM rentals JOIN customers 0N rentals."customerId" = customers.id;'
+            'SELECT * FROM rentals;'
         );
-        console.log(rentals)
+        // console.log(rentals)
         res.status(200).send(rentals.rows);
 
     } catch (err) {
@@ -75,7 +75,40 @@ export async function newRental(req, res) {
 };
 
 export async function returnRental(req, res) {
+    const { id } = req.params;
+    const returnDate = new Date();
+    let delayFee;
 
+    try {
+        const idExist = await connectionDB.query('SELECT id FROM rentals WHERE id=$1;', [id]);
+        if (idExist.rows.length === 0) {
+            return res.sendStatus(404);
+        };
+
+        const returnDateExist = await connectionDB.query('SELECT "returnDate" FROM rentals WHERE id=$1;', [id]);
+        if (returnDateExist.rows[0].returnDate !== null) {
+            return res.status(400).send({ message: 'Item já devolvido' });
+        };
+
+        const delayExist = await connectionDB.query(
+            'SELECT "rentDate", "daysRented" FROM rentals WHERE id=$1;', [id]
+        );
+        const daysRented = delayExist.rows[0].daysRented;
+        const maxDate = new Date(delayExist.rows[0].rentDate);
+        maxDate.setDate(maxDate.getDate() + daysRented);
+        if (maxDate < returnDate) {
+            const extraDays = Math.floor((returnDate.getTime() - maxDate.getTime() - (daysRented * 86400000))/86400000);
+            delayFee = extraDays //* pricePerDay            
+        };
+       
+        await connectionDB.query(
+            'UPDATE rentals SET "returnDate"=$1, "delayFee"=$2 WHERE id=$3;', [returnDate, delayFee, id]
+        );
+        res.sendStatus(200);
+
+    } catch (err) {
+        res.sendStatus(500);
+    };
 };
 
 export async function deleteRental(req, res) {
@@ -89,7 +122,7 @@ export async function deleteRental(req, res) {
 
         const returnDateExist = await connectionDB.query('SELECT "returnDate" FROM rentals WHERE id=$1;', [id]);
         if (returnDateExist.rows[0].returnDate === null) {
-            return res.status(404).send({ message: 'Não é possível excluir registros em aberto' });
+            return res.status(400).send({ message: 'Não é possível excluir registros em aberto' });
         };
 
         await connectionDB.query('DELETE FROM rentals WHERE id=$1;', [id]);

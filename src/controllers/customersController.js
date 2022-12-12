@@ -54,7 +54,7 @@ export async function getCustomerById(req, res) {
             'SELECT * FROM customers WHERE id=$1', [id]
         );
         if (rows.length === 0) {
-            return res.status(404).send("Não existe cadastro com o id informado");
+            return res.status(404).send({message: "Não existe cadastro com o id informado"});
         };
 
        res.status(200).send(rows[0]);
@@ -79,7 +79,7 @@ export async function updateCustomerById(req, res) {
             'SELECT * FROM customers WHERE id=$1', [id]
         );
         if (rows.length === 0) {
-            return res.status(404).send("Não existe cadastro com o id informado");
+            return res.status(404).send({message: "Não existe cadastro com o id informado"});
         };
         
         await connectionDB.query(
