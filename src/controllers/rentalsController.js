@@ -9,21 +9,68 @@ const rentalSchema = joi.object({
 });
 
 export async function listRentals(req, res) {
+    let arr = [];
+    //receber customerId ou gameId por parametros
 
-    //SELECT * FROM receitas JOIN categorias ON receitas."idCategoria" = categorias.id
     try {
-
-        //receber customerId ou gameId por parametros
-
-        //join customerId and game
-        //         const receitas = await connection.query(`
-        //             SELECT * FROM receitas JOIN categorias ON receitas."idCategoria"=categorias.id
-        // `);
-
-        const rentals = await connectionDB.query(
-            'SELECT * FROM rentals;'
+        const rentals = await connectionDB.query(`
+            SELECT * 
+            FROM rentals
+            JOIN customers
+            ON rentals."customerId"=customers.id
+            JOIN games
+            ON rentals."gameId" = games.id;`
         );
-        // console.log(rentals)
+        console.log(rentals.rows)
+
+        // for (let i=0; i<rentals.rows.length; i++) {
+        //     console.log(rentals.rows[i].id)
+
+        //     arr.push({
+        //         id: rentals.rows[i].id,
+        //         customerId: rentals.rows[i].customerId,
+        //         gameId: rentals.rows[i].gameId,
+        //         rentDate: rentals.rows[i].rentDate,
+        //         daysRented: rentals.rows[i].daysRented,
+        //         returnDate: rentals.rows[i].returnDate,
+        //         originalPrice: rentals.rows[i].originalPrice,
+        //         delayFee: rentals.rows[i].delayFee,
+        //         customer: {
+        //             id: rentals.rows[i].customerId,
+        //             name: rentals.rows[i].customerName,
+        //         },
+        //         game: {
+        //             id: rentals.rows[i].gameId,
+        //             name: rentals.rows[i].name,
+        //             categoryId: rentals.rows[i].categoryId,
+        //             categoryName: rentals.rows[i].categoryName
+        //         }
+        //     });
+        // };
+
+        // let teste = rentals.rows.map((r) => {
+        //     {
+        //         id = r.id,
+        //         customerId = r.customerId,
+        //         gameId = r.gameId,
+        //         rentDate = date,
+        //         daysRented = r.daysRented,
+        //         returnDate = r.returnDate,
+        //         originalPrice = r.originalPrice,
+        //         delayFee = r.delayFee,
+        //         customer {
+        //             id = r.customerId,
+        //             name = r.customerName
+        //         },
+        //         game {
+        //             id = r.gameId,
+        //             name = r.gameName,
+        //             categoryId = r.categoryId,
+        //             categoryName = r.categoryName
+        //         }
+        //     }
+        // });
+        console.log(arr)
         res.status(200).send(rentals.rows);
 
     } catch (err) {
@@ -91,16 +138,19 @@ export async function returnRental(req, res) {
         };
 
         const delayExist = await connectionDB.query(
-            'SELECT "rentDate", "daysRented" FROM rentals WHERE id=$1;', [id]
-        );
+            'SELECT "rentDate", "daysRented", "gameId" FROM rentals WHERE id=$1;', [id]
+        );        
+        const gameId = delayExist.rows[0].gameId;
         const daysRented = delayExist.rows[0].daysRented;
         const maxDate = new Date(delayExist.rows[0].rentDate);
         maxDate.setDate(maxDate.getDate() + daysRented);
+
         if (maxDate < returnDate) {
-            const extraDays = Math.floor((returnDate.getTime() - maxDate.getTime() - (daysRented * 86400000))/86400000);
-            delayFee = extraDays //* pricePerDay            
+            const extraDays = Math.floor((returnDate.getTime() - maxDate.getTime() - (daysRented * 86400000)) / 86400000);
+            const feePerDay = await connectionDB.query('SELECT "pricePerDay" FROM games WHERE id=$1', [gameId])
+            delayFee = extraDays * feePerDay.rows[0].pricePerDay;       
         };
-       
+
         await connectionDB.query(
             'UPDATE rentals SET "returnDate"=$1, "delayFee"=$2 WHERE id=$3;', [returnDate, delayFee, id]
         );
