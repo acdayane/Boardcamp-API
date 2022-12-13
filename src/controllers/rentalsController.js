@@ -10,68 +10,47 @@ const rentalSchema = joi.object({
 
 export async function listRentals(req, res) {
     let arr = [];
-    //receber customerId ou gameId por parametros
 
     try {
         const rentals = await connectionDB.query(`
-            SELECT * 
+            SELECT        
+            rentals.*,
+            customers.id AS "customerId", customers.name AS "customerName",
+            games.id AS "gameId", games.name AS "gameName",
+            categories.id AS "categoryId", categories.name AS "categoryName"
             FROM rentals
             JOIN customers
-            ON rentals."customerId"=customers.id
+            ON rentals."customerId" = customers.id
             JOIN games
-            ON rentals."gameId" = games.id;`
+            ON rentals."gameId" = games.id
+            JOIN categories
+            ON games."categoryId" = categories.id;`
         );
-        console.log(rentals.rows)
 
-        // for (let i=0; i<rentals.rows.length; i++) {
-        //     console.log(rentals.rows[i].id)
+        for (let i=0; i<rentals.rows.length; i++) {
+            arr.push({
+                id: rentals.rows[i].id,
+                customerId: rentals.rows[i].customerId,
+                gameId: rentals.rows[i].gameId,
+                rentDate: rentals.rows[i].rentDate,
+                daysRented: rentals.rows[i].daysRented,
+                returnDate: rentals.rows[i].returnDate,
+                originalPrice: rentals.rows[i].originalPrice,
+                delayFee: rentals.rows[i].delayFee,
+                customer: {
+                    id: rentals.rows[i].customerId,
+                    name: rentals.rows[i].customerName,
+                },
+                game: {
+                    id: rentals.rows[i].gameId,
+                    name: rentals.rows[i].gameName,
+                    categoryId: rentals.rows[i].categoryId,
+                    categoryName: rentals.rows[i].categoryName
+                }
+            });
+        };
 
-        //     arr.push({
-        //         id: rentals.rows[i].id,
-        //         customerId: rentals.rows[i].customerId,
-        //         gameId: rentals.rows[i].gameId,
-        //         rentDate: rentals.rows[i].rentDate,
-        //         daysRented: rentals.rows[i].daysRented,
-        //         returnDate: rentals.rows[i].returnDate,
-        //         originalPrice: rentals.rows[i].originalPrice,
-        //         delayFee: rentals.rows[i].delayFee,
-        //         customer: {
-        //             id: rentals.rows[i].customerId,
-        //             name: rentals.rows[i].customerName,
-        //         },
-        //         game: {
-        //             id: rentals.rows[i].gameId,
-        //             name: rentals.rows[i].name,
-        //             categoryId: rentals.rows[i].categoryId,
-        //             categoryName: rentals.rows[i].categoryName
-        //         }
-        //     });
-        // };
-
-        // let teste = rentals.rows.map((r) => {
-        //     {
-        //         id = r.id,
-        //         customerId = r.customerId,
-        //         gameId = r.gameId,
-        //         rentDate = date,
-        //         daysRented = r.daysRented,
-        //         returnDate = r.returnDate,
-        //         originalPrice = r.originalPrice,
-        //         delayFee = r.delayFee,
-        //         customer {
-        //             id = r.customerId,
-        //             name = r.customerName
-        //         },
-        //         game {
-        //             id = r.gameId,
-        //             name = r.gameName,
-        //             categoryId = r.categoryId,
-        //             categoryName = r.categoryName
-        //         }
-        //     }
-        // });
-        console.log(arr)
-        res.status(200).send(rentals.rows);
+        res.status(200).send(arr);
 
     } catch (err) {
         res.status(500).send(err);
@@ -85,29 +64,40 @@ export async function newRental(req, res) {
     const returnDate = null;
     let originalPrice = null;
     const delayFee = null;
-
-    const gameExist = await connectionDB.query('SELECT "pricePerDay" FROM games WHERE id=$1', [gameId]);
-    if (gameExist.rows.length === 0) {
-        return res.status(400).send({ message: 'O jogo não existe' });
-    } else {
-        originalPrice = gameExist.rows[0].pricePerDay * daysRented;
-    };
-
-    const customerExist = await connectionDB.query('SELECT "id" FROM customers WHERE id=$1', [customerId]);
-    if (customerExist.rows.length === 0) {
-        return res.status(400).send({ message: 'Cliente não cadastrado' });
-    };
-
-    //Game available? se alugueis abertos >= estoque return res.sendStatus(400);
-    //const gameAvailable = await connectionDB.query('', [])       
-
-    const validation = rentalSchema.validate({ customerId, gameId, daysRented, originalPrice }, { abortEarly: false });
-    if (validation.error) {
-        const err = validation.error.details.map((d) => d.message);
-        return res.status(422).send(err);
-    };
+    let unavailableGames = [];
 
     try {
+
+        const gameExist = await connectionDB.query('SELECT "pricePerDay", "stockTotal" FROM games WHERE id=$1;', [gameId]);
+        const stockTotal = gameExist.rows[0].stockTotal;
+        const rentalsByGame = await connectionDB.query('SELECT * FROM rentals WHERE "gameId"=$1;', [gameId]);
+       
+        if (gameExist.rows.length === 0) {
+            return res.status(400).send({ message: 'O jogo não existe' });
+        } else {
+            originalPrice = gameExist.rows[0].pricePerDay * daysRented;
+        };
+
+        for (let i=0; i< rentalsByGame.rows.length; i++) {
+            if (rentalsByGame.rows.returnDate === null) {
+                unavailableGames.push(1);
+            };
+        };
+        if (rentalsByGame.rows.length - unavailableGames.length >= stockTotal) {
+            return res.status(400).send({message: 'Não há estoque disponível'});
+        };       
+        
+        const customerExist = await connectionDB.query('SELECT "id" FROM customers WHERE id=$1', [customerId]);
+        if (customerExist.rows.length === 0) {
+            return res.status(400).send({ message: 'Cliente não cadastrado' });
+        };
+
+        const validation = rentalSchema.validate({ customerId, gameId, daysRented, originalPrice }, { abortEarly: false });
+        if (validation.error) {
+            const err = validation.error.details.map((d) => d.message);
+            return res.status(422).send(err);
+        };       
+
         await connectionDB.query(`
             INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee")
             VALUES ($1, $2, $3, $4, $5, $6, $7);`,
