@@ -78,7 +78,7 @@ export async function newRental(req, res) {
             originalPrice = gameExist.rows[0].pricePerDay * daysRented;
         };
 
-        for (let i=0; i< rentalsByGame.rows[i].length; i++) {
+        for (let i=0; i< rentalsByGame.rows.length; i++) {
             if (rentalsByGame.rows.returnDate === null) {
                 unavailableGames.push(1);
             };
